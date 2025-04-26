@@ -13,6 +13,7 @@ api_patterns = [
     path('listing/', include('listing.urls')),
     path('transaction/', include('transaction_mgmt.urls')),
     path('blog/', include('blog.urls')),
+    path('admin-api/', include('admin_custom.urls')),
 ]
 
 urlpatterns = [

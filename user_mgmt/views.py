@@ -1,9 +1,10 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from .models import User, Landlord, Tenant
 from .serializers import (
     UserSerializer, LandlordSerializer, TenantSerializer, UserLoginSerializer,
@@ -16,9 +17,11 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(deleted=False)
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['email', 'first_name', 'last_name', 'phone']
 
     def get_permissions(self):
-        if self.action in ['create', 'login', 'register']:
+        if self.action in ['create', 'login', 'register', 'search_users']:
             return [permissions.AllowAny()]
         return super().get_permissions()
 
@@ -90,10 +93,81 @@ class UserViewSet(viewsets.ModelViewSet):
         user.save()
         return Response({'status': 'KYC rejected'})
 
+    @action(detail=False, methods=['get'])
+    def search_users(self, request):
+        """
+        Tìm kiếm người dùng (cả chủ nhà và người thuê) theo từ khóa
+        """
+        query = request.query_params.get('q', '')
+        if not query:
+            return Response({"error": "Vui lòng cung cấp từ khóa tìm kiếm (q)"}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        # Tìm kiếm người dùng theo họ tên, email, số điện thoại
+        users = User.objects.filter(deleted=False).filter(
+            Q(first_name__icontains=query) | 
+            Q(last_name__icontains=query) | 
+            Q(email__icontains=query) | 
+            Q(phone__icontains=query)
+        )
+        
+        # Phân loại kết quả theo loại người dùng
+        landlords = []
+        tenants = []
+        
+        for user in users:
+            # Kiểm tra user_type không phân biệt chữ hoa/chữ thường
+            user_type_lower = user.user_type.lower()
+            
+            if user_type_lower == 'landlord':
+                try:
+                    # Truy vấn trực tiếp để tránh lỗi
+                    landlord = Landlord.objects.get(user_id=user.id)
+                    landlord_data = LandlordListSerializer(landlord).data
+                    landlords.append(landlord_data)
+                except Landlord.DoesNotExist:
+                    # Thêm dữ liệu cơ bản nếu không có mô hình Landlord
+                    landlords.append({
+                        "id": user.id,
+                        "user": {
+                            "id": user.id,
+                            "email": user.email,
+                            "first_name": user.first_name,
+                            "last_name": user.last_name,
+                            "user_type": user.user_type
+                        }
+                    })
+            elif user_type_lower == 'tenant':
+                try:
+                    # Truy vấn trực tiếp để tránh lỗi
+                    tenant = Tenant.objects.get(user_id=user.id)
+                    tenant_data = TenantListSerializer(tenant).data
+                    tenants.append(tenant_data)
+                except Tenant.DoesNotExist:
+                    # Thêm dữ liệu cơ bản nếu không có mô hình Tenant
+                    tenants.append({
+                        "id": user.id,
+                        "user": {
+                            "id": user.id,
+                            "email": user.email,
+                            "first_name": user.first_name,
+                            "last_name": user.last_name,
+                            "user_type": user.user_type
+                        }
+                    })
+        
+        return Response({
+            "landlords": landlords,
+            "tenants": tenants,
+            "total_results": len(landlords) + len(tenants)
+        })
+
 class LandlordViewSet(viewsets.ModelViewSet):
     queryset = Landlord.objects.all()
     serializer_class = LandlordSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['user__first_name', 'user__last_name', 'user__email', 'user__phone']
 
     def get_permissions(self):
         if self.action == 'create':
@@ -123,6 +197,8 @@ class TenantViewSet(viewsets.ModelViewSet):
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['user__first_name', 'user__last_name', 'user__email', 'user__phone']
 
     def get_permissions(self):
         if self.action == 'create':
