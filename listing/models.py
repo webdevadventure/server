@@ -27,6 +27,14 @@ class Listing(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(0)]
     )
+    area = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        help_text="Area in square meters",
+        null=True,
+        blank=True
+    )
     property_type = models.CharField(
         max_length=10,
         choices=PropertyType.choices

@@ -36,18 +36,24 @@ class ListingSerializer(serializers.ModelSerializer):
     street_details = StreetSerializer(source='street', read_only=True)
     reviews = ReviewSerializer(many=True, read_only=True)
     average_rating = serializers.ReadOnlyField()
+    price_per_sqm = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Listing
         fields = [
             'id', 'landlord', 'landlord_details', 'title', 'description', 
-            'price', 'property_type', 'province', 'province_details', 
+            'price', 'area', 'price_per_sqm', 'property_type', 'province', 'province_details', 
             'district', 'district_details', 'ward', 'ward_details',
             'street', 'street_details', 'specific_address', 'status',
             'posting_date', 'deleted', 'images', 'uploaded_images',
             'reviews', 'average_rating'
         ]
-        read_only_fields = ['id', 'status', 'posting_date', 'deleted', 'average_rating']
+        read_only_fields = ['id', 'status', 'posting_date', 'deleted', 'average_rating', 'price_per_sqm']
+    
+    def get_price_per_sqm(self, obj):
+        if obj.area and obj.area > 0:
+            return round(float(obj.price) / float(obj.area), 2)
+        return None
     
     def create(self, validated_data):
         uploaded_images = validated_data.pop('uploaded_images', [])

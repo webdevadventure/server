@@ -29,7 +29,7 @@ class ListingViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['property_type', 'status', 'province', 'district', 'ward']
     search_fields = ['title', 'description', 'specific_address']
-    ordering_fields = ['price', 'posting_date']
+    ordering_fields = ['price', 'area', 'posting_date']
     ordering = ['-posting_date']
     
     def get_queryset(self):
@@ -43,6 +43,15 @@ class ListingViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(price__gte=min_price)
         if max_price:
             queryset = queryset.filter(price__lte=max_price)
+        
+        # Filter by area range
+        min_area = self.request.query_params.get('min_area')
+        max_area = self.request.query_params.get('max_area')
+        
+        if min_area:
+            queryset = queryset.filter(area__gte=min_area)
+        if max_area:
+            queryset = queryset.filter(area__lte=max_area)
         
         # Filter by landlord
         landlord_id = self.request.query_params.get('landlord')
