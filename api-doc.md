@@ -162,6 +162,52 @@ curl -X POST http://example.com/api/user/users/550e8400-e29b-41d4-a716-446655440
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
+### Cập nhật thông tin cá nhân
+```
+PUT/PATCH /api/user/users/update_profile/
+```
+**Body:**
+```json
+{
+    "first_name": "Văn",
+    "last_name": "Nguyễn",
+    "phone": "0901234567",
+    "password": "new_password123",  
+    "confirm_password": "new_password123"
+}
+```
+
+**Lưu ý:** Tất cả các trường đều là tùy chọn. Trường `password` và `confirm_password` chỉ cần thiết khi muốn thay đổi mật khẩu.
+
+**Response:**
+```json
+{
+    "status": "success",
+    "message": "Thông tin người dùng đã được cập nhật",
+    "user": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "email": "nguyenvan@example.com",
+        "first_name": "Văn",
+        "last_name": "Nguyễn",
+        "phone": "0901234567",
+        "user_type": "tenant",
+        "kyc_status": "pending"
+    }
+}
+```
+
+**Ví dụ:**
+```bash
+curl -X PATCH http://example.com/api/user/users/update_profile/ \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "first_name": "Văn",
+    "last_name": "Nguyễn",
+    "phone": "0901234567"
+  }'
+```
+
 ### Quản lý chủ nhà
 ```
 GET /api/user/landlords/
@@ -170,12 +216,99 @@ GET /api/user/landlords/{id}/listings/
 GET /api/user/landlords/{id}/transactions/
 ```
 
+### Cập nhật thông tin chủ nhà
+```
+PUT/PATCH /api/user/landlords/update_profile/
+```
+**Body:**
+```json
+{
+    "user": {
+        "first_name": "Văn",
+        "last_name": "Nguyễn",
+        "phone": "0901234567",
+        "password": "new_password123",  
+        "confirm_password": "new_password123"
+    },
+    "bank_info": {
+        "bank_name": "Vietcombank",
+        "account_number": "1234567890",
+        "account_holder": "NGUYEN VAN A"
+    }
+}
+```
+
+**Lưu ý:** Tất cả các trường đều là tùy chọn. Có thể cập nhật thông tin cá nhân hoặc thông tin ngân hàng hoặc cả hai.
+
+**Response:**
+```json
+{
+    "status": "success",
+    "message": "Thông tin chủ nhà đã được cập nhật"
+}
+```
+
+**Ví dụ:**
+```bash
+curl -X PATCH http://example.com/api/user/landlords/update_profile/ \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bank_info": {
+        "bank_name": "Vietcombank",
+        "account_number": "1234567890",
+        "account_holder": "NGUYEN VAN A"
+    }
+  }'
+```
+
 ### Quản lý người thuê
 ```
 GET /api/user/tenants/
 GET /api/user/tenants/{id}/
 GET /api/user/tenants/{id}/transactions/
 GET /api/user/tenants/{id}/reviews/
+```
+
+### Cập nhật thông tin người thuê
+```
+PUT/PATCH /api/user/tenants/update_profile/
+```
+**Body:**
+```json
+{
+    "user": {
+        "first_name": "Văn",
+        "last_name": "Nguyễn",
+        "phone": "0901234567",
+        "password": "new_password123",  
+        "confirm_password": "new_password123"
+    }
+}
+```
+
+**Lưu ý:** Tất cả các trường đều là tùy chọn.
+
+**Response:**
+```json
+{
+    "status": "success",
+    "message": "Thông tin người thuê đã được cập nhật"
+}
+```
+
+**Ví dụ:**
+```bash
+curl -X PATCH http://example.com/api/user/tenants/update_profile/ \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user": {
+        "first_name": "Văn",
+        "last_name": "Nguyễn",
+        "phone": "0901234567"
+    }
+  }'
 ```
 
 ### Tìm kiếm người dùng
