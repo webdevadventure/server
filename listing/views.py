@@ -6,6 +6,7 @@ from django.db.models import Q
 from .models import Listing, ListingImage, Review, PropertyType, ListingStatus
 from .serializers import ListingSerializer, ListingImageSerializer, ReviewSerializer
 from user_mgmt.models import User
+from location.models import Province, District, Ward, Street
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -127,6 +128,89 @@ class ListingViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(similar_listings, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def search(self, request):
+        """
+        Tìm kiếm nâng cao cho phòng/căn hộ dựa trên từ khóa
+        """
+        query = request.query_params.get('q', '')
+        if not query:
+            return Response({"error": "Vui lòng cung cấp từ khóa tìm kiếm (q)"}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+            
+        # Lấy tất cả listings có status đã được phê duyệt
+        listings = Listing.objects.filter(deleted=False, status=ListingStatus.APPROVED)
+        
+        # Tìm kiếm trực tiếp trong listings
+        direct_matches = listings.filter(
+            Q(title__icontains=query) | 
+            Q(description__icontains=query) | 
+            Q(specific_address__icontains=query)
+        )
+        
+        # Tìm kiếm trong thông tin location
+        province_matches = Province.objects.filter(name__icontains=query)
+        district_matches = District.objects.filter(name__icontains=query)
+        ward_matches = Ward.objects.filter(name__icontains=query)
+        street_matches = Street.objects.filter(name__icontains=query)
+        
+        # Tìm kiếm listings từ kết quả location
+        location_matches = Listing.objects.none()
+        
+        if province_matches.exists():
+            province_listings = listings.filter(province__in=province_matches)
+            location_matches = location_matches.union(province_listings)
+            
+        if district_matches.exists():
+            district_listings = listings.filter(district__in=district_matches)
+            location_matches = location_matches.union(district_listings)
+            
+        if ward_matches.exists():
+            ward_listings = listings.filter(ward__in=ward_matches)
+            location_matches = location_matches.union(ward_listings)
+            
+        if street_matches.exists():
+            street_listings = listings.filter(street__in=street_matches)
+            location_matches = location_matches.union(street_listings)
+        
+        # Kết hợp tất cả kết quả và loại bỏ trùng lặp
+        all_results = direct_matches.union(location_matches)
+        
+        # Thêm bộ lọc thông thường nếu có
+        min_price = request.query_params.get('min_price')
+        max_price = request.query_params.get('max_price')
+        min_area = request.query_params.get('min_area')
+        max_area = request.query_params.get('max_area')
+        property_type = request.query_params.get('property_type')
+        
+        if min_price:
+            all_results = all_results.filter(price__gte=min_price)
+        if max_price:
+            all_results = all_results.filter(price__lte=max_price)
+        if min_area:
+            all_results = all_results.filter(area__gte=min_area)
+        if max_area:
+            all_results = all_results.filter(area__lte=max_area)
+        if property_type:
+            all_results = all_results.filter(property_type=property_type)
+        
+        # Sắp xếp kết quả
+        ordering = request.query_params.get('ordering', '-posting_date')
+        if ordering:
+            all_results = all_results.order_by(ordering)
+        
+        # Phân trang kết quả
+        page = self.paginate_queryset(all_results)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = self.get_serializer(all_results, many=True)
+        return Response({
+            "results": serializer.data,
+            "count": all_results.count()
+        })
 
 class ListingImageViewSet(viewsets.ModelViewSet):
     queryset = ListingImage.objects.all()
