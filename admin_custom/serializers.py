@@ -147,3 +147,83 @@ class LandlordApprovalSerializer(serializers.Serializer):
             raise serializers.ValidationError("User not found or not a landlord")
         
         return data 
+
+class ListingApprovalDetailSerializer(serializers.ModelSerializer):
+    landlord = serializers.SerializerMethodField()
+    amenities = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
+    location = serializers.SerializerMethodField()
+    pricing = serializers.SerializerMethodField()
+    rules = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+    updated_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+
+    class Meta:
+        model = Listing
+        fields = [
+            'id', 'title', 'description', 'property_type', 'room_type',
+            'landlord', 'amenities', 'images', 'location', 'pricing',
+            'rules', 'status', 'created_at', 'updated_at'
+        ]
+
+    def get_landlord(self, obj):
+        return {
+            'id': obj.landlord.id,
+            'name': obj.landlord.user.get_full_name(),
+            'email': obj.landlord.user.email,
+            'phone': obj.landlord.user.phone,
+            'kyc_status': obj.landlord.kyc_status
+        }
+
+    def get_amenities(self, obj):
+        return {
+            'bedrooms': obj.bedrooms,
+            'bathrooms': obj.bathrooms,
+            'area': obj.area,
+            'furnished': obj.furnished,
+            'air_conditioning': obj.air_conditioning,
+            'wifi': obj.wifi,
+            'parking': obj.parking,
+            'pets_allowed': obj.pets_allowed,
+            'smoking_allowed': obj.smoking_allowed
+        }
+
+    def get_images(self, obj):
+        return [image.image.url for image in obj.images.all()]
+
+    def get_location(self, obj):
+        return {
+            'address': obj.address,
+            'city': obj.city,
+            'state': obj.state,
+            'country': obj.country,
+            'zip_code': obj.zip_code,
+            'latitude': obj.latitude,
+            'longitude': obj.longitude
+        }
+
+    def get_pricing(self, obj):
+        return {
+            'price': obj.price,
+            'deposit': obj.deposit,
+            'utilities_included': obj.utilities_included,
+            'additional_fees': obj.additional_fees
+        }
+
+    def get_rules(self, obj):
+        return {
+            'check_in_time': obj.check_in_time,
+            'check_out_time': obj.check_out_time,
+            'minimum_stay': obj.minimum_stay,
+            'maximum_stay': obj.maximum_stay,
+            'house_rules': obj.house_rules
+        }
+
+    def get_status(self, obj):
+        return {
+            'current_status': obj.status,
+            'is_available': obj.is_available,
+            'is_featured': obj.is_featured,
+            'is_verified': obj.is_verified
+        } 

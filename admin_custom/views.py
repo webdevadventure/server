@@ -5,6 +5,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Avg
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from rest_framework.permissions import IsAuthenticated
 
 from .models import Admin, ListingApproval, Alert, AlertType, ApprovalAction
 from user_mgmt.models import User, Landlord, Tenant
@@ -12,7 +13,7 @@ from listing.models import Listing, ListingStatus
 from .serializers import (
     AdminSerializer, ListingApprovalSerializer, AlertSerializer, 
     AlertTypeSerializer, AdminStatisticsSerializer, LandlordApprovalSerializer,
-    AdminUserSerializer
+    AdminUserSerializer, ListingApprovalDetailSerializer
 )
 from listing.serializers import ListingSerializer
 from user_mgmt.serializers import UserSerializer
@@ -329,4 +330,63 @@ class AlertTypeViewSet(viewsets.ModelViewSet):
     """
     queryset = AlertType.objects.all()
     serializer_class = AlertTypeSerializer
-    permission_classes = [IsAdminUser] 
+    permission_classes = [IsAdminUser]
+
+class ListingApprovalViewSet(viewsets.ModelViewSet):
+    queryset = ListingApproval.objects.all()
+    serializer_class = ListingApprovalSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return ListingApproval.objects.filter(admin=self.request.user.admin)
+
+    @action(detail=True, methods=['get'])
+    def detail(self, request, pk=None):
+        approval = self.get_object()
+        serializer = ListingApprovalDetailSerializer(approval.listing)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        approval = self.get_object()
+        approval.status = 'approved'
+        approval.save()
+        
+        # Update listing status
+        listing = approval.listing
+        listing.status = 'active'
+        listing.is_verified = True
+        listing.save()
+        
+        # Create alert for landlord
+        Alert.objects.create(
+            user=listing.landlord.user,
+            type=AlertType.objects.get(name='listing_approved'),
+            title='Listing Approved',
+            message=f'Your listing "{listing.title}" has been approved and is now active.',
+            data={'listing_id': listing.id}
+        )
+        
+        return Response({'status': 'approved'})
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        approval = self.get_object()
+        approval.status = 'rejected'
+        approval.save()
+        
+        # Update listing status
+        listing = approval.listing
+        listing.status = 'rejected'
+        listing.save()
+        
+        # Create alert for landlord
+        Alert.objects.create(
+            user=listing.landlord.user,
+            type=AlertType.objects.get(name='listing_rejected'),
+            title='Listing Rejected',
+            message=f'Your listing "{listing.title}" has been rejected. Please review and update the information.',
+            data={'listing_id': listing.id}
+        )
+        
+        return Response({'status': 'rejected'}) 
