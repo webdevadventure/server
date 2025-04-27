@@ -3,14 +3,14 @@ from django.contrib.auth import get_user_model
 from .models import User, Landlord, Tenant
 
 class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-    confirm_password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, required=False)
+    confirm_password = serializers.CharField(write_only=True, required=False)
     
     class Meta:
         model = User
         fields = ('id', 'email', 'password', 'confirm_password', 'first_name', 'last_name', 
                  'phone', 'user_type', 'kyc_status')
-        read_only_fields = ('id', 'kyc_status')
+        read_only_fields = ('id', 'kyc_status', 'email', 'user_type')
         extra_kwargs = {
             'password': {'write_only': True},
             'email': {'required': True},
@@ -20,8 +20,12 @@ class UserSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, data):
-        if data.get('password') != data.get('confirm_password'):
-            raise serializers.ValidationError("Passwords do not match")
+        if self.instance is None:  # Only for create
+            if data.get('password') != data.get('confirm_password'):
+                raise serializers.ValidationError("Passwords do not match")
+        elif data.get('password') and data.get('confirm_password'):  # For update if password provided
+            if data.get('password') != data.get('confirm_password'):
+                raise serializers.ValidationError("Passwords do not match")
         return data
 
     def create(self, validated_data):
@@ -31,6 +35,22 @@ class UserSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         return user
+        
+    def update(self, instance, validated_data):
+        # Remove confirm_password if it exists
+        validated_data.pop('confirm_password', None)
+        
+        # Handle password update if provided
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+            
+        # Update other fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+            
+        instance.save()
+        return instance
 
 class UserBasicInfoSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()

@@ -79,6 +79,31 @@ class UserViewSet(viewsets.ModelViewSet):
             }
         })
 
+    @action(detail=False, methods=['put', 'patch'])
+    def update_profile(self, request):
+        """
+        Cập nhật thông tin cá nhân của người dùng đang đăng nhập
+        """
+        user = request.user
+        serializer = self.get_serializer(user, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'status': 'success',
+                'message': 'Thông tin người dùng đã được cập nhật',
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'phone': user.phone,
+                    'user_type': user.user_type,
+                    'kyc_status': user.kyc_status
+                }
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['post'])
     def verify_kyc(self, request, pk=None):
         user = self.get_object()
@@ -179,6 +204,55 @@ class LandlordViewSet(viewsets.ModelViewSet):
             return LandlordListSerializer
         return LandlordSerializer
 
+    @action(detail=False, methods=['put', 'patch'])
+    def update_profile(self, request):
+        """
+        Cập nhật thông tin cá nhân của chủ nhà đang đăng nhập
+        """
+        user = request.user
+        
+        if user.user_type.lower() != 'landlord':
+            return Response(
+                {'error': 'Bạn không phải là chủ nhà'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        try:
+            landlord = Landlord.objects.get(user=user)
+        except Landlord.DoesNotExist:
+            return Response(
+                {'error': 'Không tìm thấy thông tin chủ nhà'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+            
+        # Prepare data - handle both user and landlord data
+        user_data = {}
+        landlord_data = {}
+        
+        # Extract user fields
+        for field in ['first_name', 'last_name', 'phone', 'password', 'confirm_password']:
+            if field in request.data:
+                user_data[field] = request.data[field]
+                
+        # Extract landlord fields
+        if 'bank_info' in request.data:
+            landlord_data['bank_info'] = request.data['bank_info']
+                
+        # Combine data
+        data = {**landlord_data}
+        if user_data:
+            data['user'] = user_data
+            
+        serializer = self.get_serializer(landlord, data=data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'status': 'success',
+                'message': 'Thông tin chủ nhà đã được cập nhật'
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['get'])
     def listings(self, request, pk=None):
         landlord = self.get_object()
@@ -209,6 +283,54 @@ class TenantViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return TenantListSerializer
         return TenantSerializer
+
+    @action(detail=False, methods=['put', 'patch'])
+    def update_profile(self, request):
+        """
+        Cập nhật thông tin cá nhân của người thuê đang đăng nhập
+        """
+        user = request.user
+        
+        if user.user_type.lower() != 'tenant':
+            return Response(
+                {'error': 'Bạn không phải là người thuê'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        try:
+            tenant = Tenant.objects.get(user=user)
+        except Tenant.DoesNotExist:
+            return Response(
+                {'error': 'Không tìm thấy thông tin người thuê'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+            
+        # Prepare data - handle both user and tenant data
+        user_data = {}
+        tenant_data = {}
+        
+        # Extract user fields
+        for field in ['first_name', 'last_name', 'phone', 'password', 'confirm_password']:
+            if field in request.data:
+                user_data[field] = request.data[field]
+                
+        # Extract tenant fields if there are any specific tenant fields to update
+        # Currently no specific tenant fields to update
+                
+        # Combine data
+        data = {**tenant_data}
+        if user_data:
+            data['user'] = user_data
+            
+        serializer = self.get_serializer(tenant, data=data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'status': 'success',
+                'message': 'Thông tin người thuê đã được cập nhật'
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['get'])
     def transactions(self, request, pk=None):
